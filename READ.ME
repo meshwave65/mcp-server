@@ -1,0 +1,89 @@
+# MeshWave Model Context Protocol (MCP) Server
+
+## 1. Visão Geral
+
+O **MCP Server** é uma aplicação de backend segura, construída com Python e FastAPI, que atua como uma ponte (bridge) entre agentes de Inteligência Artificial (como o Manus) e um ambiente de desenvolvimento local. Ele expõe um conjunto de "ferramentas" via uma API RESTful, permitindo que o agente de IA interaja com o sistema de arquivos e execute comandos de forma controlada e segura.
+
+Este servidor é um componente crucial da nossa estratégia de desenvolvimento acelerado para o Projeto MeshWave, permitindo automação, testes e refatoração de código de forma programática.
+
+---
+
+## 2. Pré-requisitos
+
+*   Python 3.8 ou superior
+*   `pip` (gerenciador de pacotes do Python)
+*   (Opcional, mas recomendado) [ngrok](https://ngrok.com/download ) para expor o servidor local à internet de forma segura.
+
+---
+
+## 3. Instalação e Configuração
+
+1.  **Clone o repositório:**
+    ```bash
+    git clone https://github.com/meshwave65/mcp-server.git
+    cd mcp-server
+    ```
+
+2.  **Crie e ative um ambiente virtual (recomendado ):**
+    ```bash
+    # No Windows
+    python -m venv venv
+    .\venv\Scripts\activate
+
+    # No macOS/Linux
+    python3 -m venv venv
+    source venv/bin/activate
+    ```
+
+3.  **Instale as dependências:**
+    Crie um arquivo chamado `requirements.txt` com o seguinte conteúdo:
+    ```
+    fastapi
+    uvicorn[standard]
+    ```
+    Em seguida, instale-o:
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+4.  **Configure a Chave de API:**
+    Abra o arquivo `mcp_server.py` e altere o valor da variável `API_TOKEN` para uma chave secreta forte de sua escolha.
+    ```python
+    # Exemplo dentro de mcp_server.py
+    API_TOKEN = "sua-chave-secreta-super-forte-aqui"
+    ```
+    **Atenção:** Nunca submeta sua chave secreta real para o repositório Git.
+
+---
+
+## 4. Execução
+
+1.  **Inicie o servidor localmente:**
+    ```bash
+    python mcp_server.py
+    ```
+    O servidor estará disponível em `http://127.0.0.1:8000`. Você pode acessar `http://127.0.0.1:8000/docs` em seu navegador para ver a documentação interativa da API gerada pelo FastAPI.
+
+2.  **Exponha o servidor com `ngrok` (se necessário ):**
+    Abra um novo terminal e execute:
+    ```bash
+    ngrok http 8000
+    ```
+    O `ngrok` fornecerá uma URL pública (ex: `https://aleatorio.ngrok.io` ). É esta URL que deverá ser fornecida ao agente de IA para comunicação.
+
+---
+
+## 5. Referência da API
+
+Todas as requisições para a API devem incluir um header de autenticação: `X-API-Key: <seu_api_token>`.
+
+*   **`POST /tools/list_files`**: Lista arquivos e diretórios.
+    *   **Body:** `{ "path": "/caminho/para/diretorio" }`
+*   **`POST /tools/read_file`**: Lê o conteúdo de um arquivo.
+    *   **Body:** `{ "path": "/caminho/para/arquivo.kt" }`
+*   **`POST /tools/write_file`**: Escreve (ou sobrescreve) um arquivo.
+    *   **Body:** `{ "path": "/caminho/para/arquivo.kt", "content": "novo conteúdo do arquivo" }`
+*   **`POST /tools/run_command`**: Executa um comando no shell.
+    *   **Body:** `{ "command": "ls -l" }`
+
+
