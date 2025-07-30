@@ -1,51 +1,40 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Enum as SQLAlchemyEnum, ForeignKey
-from sqlalchemy.orm import relationship
-from ..database import Base  # Importa a Base do arquivo central
-import enum
+# sofia/engine/backend/app/models/models.py (VERSÃO FINAL CORRIGIDA)
 
-# Este Enum pode ser usado para o campo status, se desejado
-class TaskStatusEnum(enum.Enum):
-    open = 1
-    in_progress = 2
-    on_hold = 3
-    done = 4
-    canceled = 5
+from sqlalchemy import Column, Integer, String, Text, TIMESTAMP, ForeignKey
+from sqlalchemy.sql import func
 
-class Segment(Base):
-    __tablename__ = "segments"
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), unique=True, nullable=False, index=True)
-    description = Column(Text, nullable=True)
-    
-    phases = relationship("Phase", back_populates="segment")
+# --- CORREÇÃO PRINCIPAL ---
+# A importação original era ".database", que procura o arquivo na pasta atual (models/).
+# A importação correta é "..database", que diz ao Python para "voltar um diretório"
+# (de app/models/ para app/) e então encontrar o arquivo database.py.
+from ..database import Base
 
-class Phase(Base):
-    __tablename__ = "phases"
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False)
-    order = Column(Integer, nullable=False)
-    segment_id = Column(Integer, ForeignKey("segments.id"), nullable=False)
-    
-    segment = relationship("Segment", back_populates="phases")
-    modules = relationship("Module", back_populates="phase")
-
+# Representa a tabela 'modules'
 class Module(Base):
     __tablename__ = "modules"
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False)
-    order = Column(Integer, nullable=False)
-    phase_id = Column(Integer, ForeignKey("phases.id"), nullable=False)
-    
-    phase = relationship("Phase", back_populates="modules")
-    tasks = relationship("Task", back_populates="module")
-
-class Task(Base):
-    __tablename__ = "tasks"
-    id = Column(Integer, primary_key=True, index=True)
-    title = Column(String(255), nullable=False)
+    name = Column(String, nullable=False)
     description = Column(Text, nullable=True)
-    status = Column(SQLAlchemyEnum(TaskStatusEnum), nullable=False, default=TaskStatusEnum.open)
-    module_id = Column(Integer, ForeignKey("modules.id"), nullable=False)
-    
-    module = relationship("Module", back_populates="tasks")
+    status = Column(String, default='Planejado')
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+
+# Representa a tabela 'metadata_types'
+class MetadataType(Base):
+    __tablename__ = "metadata_types"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, nullable=False)
+
+# Representa a tabela 'metadata_values'
+class MetadataValue(Base):
+    __tablename__ = "metadata_values"
+    id = Column(Integer, primary_key=True, index=True)
+    type_id = Column(Integer, ForeignKey("metadata_types.id"), nullable=False)
+    value = Column(String, nullable=False)
+
+# Representa a tabela de junção 'module_metadata'
+class ModuleMetadata(Base):
+    __tablename__ = "module_metadata"
+    module_id = Column(Integer, ForeignKey("modules.id"), primary_key=True)
+    metadata_value_id = Column(Integer, ForeignKey("metadata_values.id"), primary_key=True)
 

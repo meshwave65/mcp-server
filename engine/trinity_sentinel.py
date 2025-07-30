@@ -1,121 +1,158 @@
-# sofia/engine/trinity_sentinel.py (v2.1 - Correção do CWD do Backend)
+# sofia/engine/trinity_sentinel.py (v3.4 - Usando Script de Inicialização)
 
 import os
 import time
 import json
 import requests
 import subprocess
+import psutil
 from pathlib import Path
+from ftplib import FTP
+import io
+from datetime import datetime, timezone
 
-# =============================================================================
-# BLOCO 1: CONFIGURAÇÃO BASEADA NA ARQUITETURA SOFIA
-# =============================================================================
+# --- Bloco de Configuração (sem alterações) ---
 ENGINE_ROOT = Path(__file__).resolve().parent
-SOFIA_ROOT = ENGINE_ROOT.parent
 BACKEND_DIR = ENGINE_ROOT / 'backend'
 FRONTEND_DIR = ENGINE_ROOT / 'frontend'
-CLIENT_NAME = "meshwave"
-CONFIG_FILE_PATH = SOFIA_ROOT / 'clients' / CLIENT_NAME / 'config_sofia.json'
 BACKEND_PORT = 8000
 FRONTEND_PORT = 5173
 NGROK_API_URL = "http://localhost:4040/api/tunnels"
+LOCAL_CONFIG_PATH = FRONTEND_DIR / 'public' / 'config.json'
+FTP_CONFIG = {
+    "host": "ftp.meshwave.com.br",
+    "user": "meshwave1",
+    "password": "Mesh#Wave#1965",
+    "remote_path": "/public_html/sofia/config.json"
+}
 
-# =============================================================================
-# BLOCO 2: FUNÇÕES DE SERVIÇO ADAPTADAS
-# =============================================================================
-
-def check_service(name: str, port: int ) -> bool:
-    try:
-        requests.get(f"http://localhost:{port}", timeout=5 )
-        return True
-    except requests.exceptions.ConnectionError:
-        print(f"⚠️  Serviço '{name}' está INATIVO na porta {port}.")
-        return False
-
-def start_backend():
-    """Inicia o servidor de Backend usando o venv correto."""
-    print("🔄 Iniciando o servidor de Backend (Uvicorn)...")
-    venv_python = BACKEND_DIR / 'venv' / 'bin' / 'python'
-    command = [
-        str(venv_python),
-        "-m", "uvicorn",
-        "app.main:app",
-        "--host", "localhost",
-        "--port", str(BACKEND_PORT)
-    ]
-    # --- A CORREÇÃO ESTÁ AQUI ---
-    # O diretório de trabalho (cwd) deve ser o BACKEND_DIR, para que ele possa encontrar o módulo 'app'.
-    subprocess.Popen(command, cwd=BACKEND_DIR)
-    # --- FIM DA CORREÇÃO ---
-    time.sleep(10)
-
-def start_frontend():
-    """Inicia o servidor de desenvolvimento do Frontend."""
-    print("🔄 Iniciando o servidor de Frontend (NPM)...")
-    command = ["npm", "run", "dev"]
-    subprocess.Popen(command, cwd=FRONTEND_DIR)
-    time.sleep(15)
-
+# --- Funções e Classe Sentinel (sem alterações até a definição do comando ) ---
+# [Todo o código das funções e da classe Sentinel permanece o mesmo]
+# ...
 def get_ngrok_public_url() -> str | None:
-    """Obtém a URL pública do túnel NGROK que aponta para o nosso backend."""
     try:
         response = requests.get(NGROK_API_URL, timeout=5)
         response.raise_for_status()
         data = response.json()
         for tunnel in data.get("tunnels", []):
-            if tunnel.get("proto") == "https" and tunnel.get("config", {} ).get("addr") == f"http://localhost:{BACKEND_PORT}":
-                return tunnel.get("public_url" )
-    except (requests.exceptions.RequestException, json.JSONDecodeError) as e:
-        print(f"DEBUG: Não foi possível conectar à API do NGROK: {e}")
+            if tunnel.get("proto") == "https" and "localhost" in tunnel.get("config", {}  ).get("addr"):
+                return tunnel.get("public_url")
+    except requests.exceptions.RequestException:
         return None
     return None
 
-def start_ngrok():
-    """Inicia um novo túnel do Ngrok em background."""
-    print("🔄 Iniciando um novo túnel do Ngrok...")
-    command = ["ngrok", "http", str(BACKEND_PORT ), "--log=stdout", ">", "/dev/null"]
-    subprocess.Popen(" ".join(command), shell=True)
-    time.sleep(10)
-
-def update_local_config(project_name: str, new_url: str):
-    """Atualiza o arquivo config_sofia.json localmente."""
-    print(f"🔄 Atualizando '{CONFIG_FILE_PATH}' com a nova URL: {new_url}")
+def update_config_files(new_url: str):
+    print("--- Iniciando Sincronização do Arquivo de Configuração ---")
+    config_content = {
+        "backend_url": new_url,
+        "last_updated_utc": datetime.now(timezone.utc).isoformat()
+    }
+    json_string = json.dumps(config_content, indent=2)
     try:
-        with open(CONFIG_FILE_PATH, 'r') as f:
-            config_data = json.load(f)
-        if config_data.get("projects", {}).get(project_name, {}).get("ngrok_url") == new_url:
-            print("✅ URL no config_sofia.json já está correta.")
-            return
-        config_data["projects"][project_name]["ngrok_url"] = new_url
-        with open(CONFIG_FILE_PATH, 'w') as f:
-            json.dump(config_data, f, indent=2)
-        print("✅ Arquivo config_sofia.json atualizado localmente.")
-    except (FileNotFoundError, KeyError, json.JSONDecodeError) as e:
-        print(f"❌ ERRO ao atualizar o config_sofia.json: {e}")
+        LOCAL_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with open(LOCAL_CONFIG_PATH, 'w') as f:
+            f.write(json_string)
+        print(f"✅ Arquivo local atualizado com sucesso em: {LOCAL_CONFIG_PATH}")
+    except Exception as e:
+        print(f"❌ ERRO ao escrever o arquivo de configuração local: {e}")
+        return
+    try:
+        print(f"🔄 Conectando ao servidor FTP...")
+        with FTP(timeout=15) as ftp:
+            ftp.connect(FTP_CONFIG['host'])
+            ftp.login(FTP_CONFIG['user'], FTP_CONFIG['password'])
+            ftp.set_pasv(True)
+            print("✅ Conexão FTP estabelecida.")
+            json_bytes = io.BytesIO(json_string.encode('utf-8'))
+            ftp.storbinary(f"STOR {FTP_CONFIG['remote_path']}", json_bytes)
+            print(f"✅ Arquivo remoto atualizado com sucesso.")
+    except Exception as e:
+        print(f"❌ ERRO ao atualizar a configuração via FTP: {e}")
 
-# =============================================================================
-# BLOCO 3: LOOP PRINCIPAL DO SENTINELA
-# =============================================================================
-if __name__ == "__main__":
-    print("--- 🛡️  Iniciando o Sentinela SOFIA (v2.1 - Corrigido) 🛡️ ---")
-    TARGET_PROJECT = "project_AppMWC"
-    while True:
-        print(f"\n--- Verificação às {time.strftime('%Y-%m-%d %H:%M:%S')} ---")
-        if not check_service("Backend", BACKEND_PORT):
-            start_backend()
-        if not check_service("Frontend", FRONTEND_PORT):
-            start_frontend()
-        ngrok_url = get_ngrok_public_url()
-        if not ngrok_url:
-            print("⚠️  Túnel do Ngrok está INATIVO.")
-            start_ngrok()
-            time.sleep(5)
+class Sentinel:
+    def __init__(self):
+        self.managed_pids = {"backend": None, "frontend": None, "ngrok": None}
+
+    def get_pid_on_port(self, port):
+        try:
+            for conn in psutil.net_connections(kind='inet'):
+                if conn.laddr.port == port and conn.status == psutil.CONN_LISTEN:
+                    return conn.pid
+        except Exception:
+            return None
+        return None
+
+    def start_service(self, name, command, cwd):
+        print(f"🔄 Iniciando o serviço '{name}' em '{cwd}'...")
+        try:
+            is_shell_needed = True if os.name == 'nt' and name == 'frontend' else False
+            process = subprocess.Popen(command, cwd=cwd, shell=is_shell_needed)
+            self.managed_pids[name] = process.pid
+            print(f"✅ Serviço '{name}' iniciado com PID: {process.pid}")
+            time.sleep(12)
+        except Exception as e:
+            print(f"❌ Falha catastrófica ao iniciar '{name}': {e}")
+
+    def stop_service_by_pid(self, pid):
+        if pid and psutil.pid_exists(pid):
+            try:
+                process = psutil.Process(pid)
+                for child in process.children(recursive=True):
+                    child.kill()
+                process.kill()
+                print(f"🔪 Processo e filhos (PID: {pid}) finalizados.")
+            except psutil.NoSuchProcess:
+                pass
+
+    def check_and_manage_service(self, name, port, command, cwd):
+        pid_on_port = self.get_pid_on_port(port)
+        if pid_on_port and psutil.pid_exists(pid_on_port):
+            return
+
+        print(f"⚠️  Serviço '{name}' não está rodando. Tentando iniciar...")
+        self.start_service(name, command, cwd)
+
+    def run(self):
+        print(f"--- 🛡️  Iniciando o Sentinela SOFIA (v3.4 - Usando Script de Inicialização) 🛡️ ---")
+        
+        # --- CORREÇÃO DEFINITIVA ---
+        # O comando agora é simplesmente chamar o nosso script de inicialização.
+        # O script cuidará de ativar o venv e executar o uvicorn.
+        backend_cmd = ["./start_backend.sh"]
+        
+        npm_path = "npm"
+        frontend_cmd = [npm_path, "run", "dev"]
+        
+        while True:
+            print(f"\n--- Verificação às {time.strftime('%Y-%m-%d %H:%M:%S')} ---")
+            
+            self.check_and_manage_service("backend", BACKEND_PORT, backend_cmd, BACKEND_DIR)
+            self.check_and_manage_service("frontend", FRONTEND_PORT, frontend_cmd, FRONTEND_DIR)
+
+            if not self.get_pid_on_port(4040):
+                 print("⚠️  Processo do Ngrok não encontrado. Tentando reiniciar...")
+                 os.system("killall ngrok > /dev/null 2>&1")
+                 time.sleep(2)
+                 subprocess.Popen(f"ngrok http {BACKEND_PORT} > /dev/null 2>&1", shell=True )
+                 time.sleep(5)
+
             ngrok_url = get_ngrok_public_url()
-        if ngrok_url:
-            print(f"✅ Túnel do Ngrok está ATIVO: {ngrok_url}")
-            update_local_config(TARGET_PROJECT, ngrok_url)
-        else:
-            print("❌ Falha ao estabelecer o túnel do Ngrok após tentativa.")
-        print("--- Verificação concluída. Próxima em 60 segundos. ---")
-        time.sleep(60)
+            if ngrok_url:
+                print(f"✅ Túnel do Ngrok está ATIVO: {ngrok_url}")
+                update_config_files(ngrok_url)
+            else:
+                print("❌ Falha ao obter a URL do Ngrok.")
+
+            print("--- Verificação concluída. Próxima em 60 segundos. ---")
+            time.sleep(60)
+
+if __name__ == "__main__":
+    print("--- Limpando processos antigos antes de iniciar... ---")
+    os.system(f"kill -9 $(lsof -t -i:{BACKEND_PORT}) > /dev/null 2>&1")
+    os.system(f"kill -9 $(lsof -t -i:{FRONTEND_PORT}) > /dev/null 2>&1")
+    os.system("killall ngrok > /dev/null 2>&1")
+    time.sleep(2)
+    print("--- Limpeza concluída. Iniciando o Sentinela. ---")
+    sentinel = Sentinel()
+    sentinel.run()
 
