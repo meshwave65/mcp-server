@@ -1,0 +1,79 @@
+/* sofia/engine/frontend/src/components/StatusPanel.css */
+
+.status-panel {
+  background-color: var(--block-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 20px;
+  color: var(--text-primary);
+}
+
+.status-panel h2 {
+  margin-top: 0;
+  text-align: center;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 15px;
+  margin-bottom: 20px;
+}
+
+.status-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.status-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--button-bg);
+  padding: 10px 15px;
+  border-radius: 5px;
+}
+
+.service-name {
+  font-weight: bold;
+}
+
+.status-indicator {
+  padding: 5px 10px;
+  border-radius: 15px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.status-indicator.active {
+  background-color: #27ae60; /* Verde */
+  color: white;
+}
+
+.status-indicator.inactive {
+  background-color: #c0392b; /* Vermelho */
+  color: white;
+}
+
+.ngrok-url-container {
+  margin-top: 10px;
+}
+
+.ngrok-url-input {
+  width: 100%;
+  background-color: var(--sidebar-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 8px;
+  border-radius: 5px;
+  margin-top: 5px;
+  box-sizing: border-box; /* Garante que o padding não estoure a largura */
+}
+
+.error-message {
+    color: #e74c3c;
+    background-color: rgba(231, 76, 60, 0.1);
+    border: 1px solid #e74c3c;
+    padding: 10px;
+    border-radius: 5px;
+    text-align: center;
+}
+

@@ -1,0 +1,113 @@
+/* sofia/engine/frontend/src/App.css (v2.1 - Ajustes de Design) */
+
+:root {
+  --sidebar-bg: #1a1d21;
+  --main-bg: #24282f;
+  --block-bg: #2c313a;
+  --border-color: #4b5162;
+  --text-primary: #e1e1e1;
+  --text-secondary: #a0a0a0;
+  --accent-color: #3498db;
+  --button-bg: #3a3f4b;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  background-color: var(--main-bg);
+  color: var(--text-primary);
+}
+
+.sofia-app {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+.sidebar {
+  width: 280px;
+  background-color: var(--sidebar-bg);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border-color);
+}
+
+/* --- A CORREÇÃO ESTÁ AQUI --- */
+.sidebar-header {
+  display: flex;
+  justify-content: center; /* Centraliza o logo horizontalmente */
+  align-items: center;
+  margin-bottom: 30px;
+  padding: 10px 0;
+}
+
+.logo {
+  height: 80px; /* Dobro do tamanho original (40px -> 80px) */
+}
+
+.sidebar-block {
+  background-color: var(--block-bg);
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 20px;
+  border: 1px solid var(--border-color);
+}
+
+/* Adiciona um espaçamento entre os blocos do rodapé */
+.sidebar-footer {
+  margin-top: auto; /* Empurra o rodapé para o fundo */
+}
+/* --- FIM DA CORREÇÃO --- */
+
+.block-title {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.button-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.segment-button {
+  background-color: var(--button-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  padding: 12px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.2s;
+  font-size: 1rem;
+}
+
+.segment-button:hover {
+  background-color: var(--accent-color);
+  transform: translateY(-2px);
+}
+
+.login-placeholder, .settings-placeholder {
+  background-color: var(--button-bg);
+  padding: 12px;
+  border-radius: 5px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.main-content {
+  flex-grow: 1;
+  padding: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
