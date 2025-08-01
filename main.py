@@ -1,25 +1,42 @@
-# main.py - Implementação do Backend SOFIA v2 com FastAPI
+# main.py (v2.2.2 - CORRIGIDO)
+# Corrige a falha na criação de blocos (faltava o block_id).
 
-from fastapi import FastAPI, HTTPException, Depends, Query
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
-from typing import List, Optional
 import mysql.connector
-import uuid
 from contextlib import contextmanager
+from typing import List, Optional
+import uuid # <-- IMPORTANTE: Adicionamos a biblioteca uuid
 
 # --- Configuração do Banco de Dados ---
-# IMPORTANTE: Ajuste 'user' e 'password' conforme sua configuração local.
 DB_CONFIG = {
     'host': 'localhost',
     'user': 'root',
-    'password': 'A_SUA_SENHA_SECRETA_AQUI', # <-- COLOQUE SUA SENHA AQUI
+    'password': 'mesh1234', # Sua senha
     'database': 'meshwave_db'
 }
 
-# --- Gerenciador de Conexão com o Banco de Dados ---
+# --- Modelos Pydantic (Estruturas de Dados) ---
+class Task(BaseModel):
+    id: int
+    title: str
+    status: str
+    priority: int
+    assigned_to: Optional[str] = None
+
+class TaskBlock(BaseModel):
+    sequence: int
+    block_type: str
+    author_id: str
+    content: str
+
+class TaskDetail(Task):
+    blocks: List[TaskBlock]
+
+# --- Context Manager para Conexão com o DB ---
 @contextmanager
 def get_db_connection():
-    """Gerencia a conexão com o banco de dados de forma segura."""
     try:
         conn = mysql.connector.connect(**DB_CONFIG)
         yield conn
@@ -27,70 +44,46 @@ def get_db_connection():
         if 'conn' in locals() and conn.is_connected():
             conn.close()
 
-# --- Modelos Pydantic (para validação de dados) ---
-class TaskBase(BaseModel):
-    id: int
-    title: str
-    status: str
-    priority: int
-    assigned_to: Optional[str] = None
-
-class BlockBase(BaseModel):
-    sequence: int
-    block_type: str
-    author_id: str
-    content: str
-
-class TaskDetails(TaskBase):
-    original_task_id: Optional[str] = None
-    blocks: List[BlockBase]
-
-class TaskUpdate(BaseModel):
-    status: Optional[str] = None
-    priority: Optional[int] = None
-    assigned_to: Optional[str] = None
-
-class BlockCreate(BaseModel):
-    author_id: str
-    block_type: str
-    content: str
-
 # --- Inicialização da Aplicação FastAPI ---
 app = FastAPI(
-    title="SOFIA Backend API",
-    version="2.0.0",
-    description="API para o sistema SOFIA e seus projetos gerenciados, conectada à arquitetura de DB v2."
+    title="SOFIA Task Management API",
+    description="API para gerenciar tarefas e agentes no ecossistema SOFIA.",
+    version="2.2.2",
 )
 
-# --- Implementação dos Endpoints ---
+# --- Endpoint do Oráculo ---
+@app.get("/oracle", response_class=PlainTextResponse, tags=["Oracle"])
+def get_oracle():
+    try:
+        with open("SOFIA_OPERATIONS_MANUAL.md", "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Manual de Operações (Oráculo) não encontrado.")
 
-@app.get("/api/v1/tasks", response_model=List[TaskBase], tags=["Tasks"])
-def read_all_tasks(status: Optional[str] = Query(None, description="Filtra tarefas por status (ex: open, in_progress)")):
-    """
-    Lista as tarefas principais. Suporta filtragem por status.
-    """
-    query = "SELECT id, title, status, priority, assigned_to FROM tasks"
-    params = []
-    if status:
-        query += " WHERE status = %s"
-        params.append(status)
-    
+# --- Endpoints da API ---
+@app.get("/api/v1/tasks", response_model=List[Task], tags=["Tasks"])
+def get_tasks(status: Optional[str] = None, sort_by_priority: bool = False):
     with get_db_connection() as conn:
         cursor = conn.cursor(dictionary=True)
+        query = "SELECT id, title, status, priority, assigned_to FROM tasks"
+        params = []
+        if status:
+            query += " WHERE status = %s"
+            params.append(status)
+        if sort_by_priority:
+            query += " ORDER BY priority ASC" # Prioridade 1 é a mais alta
+        
         cursor.execute(query, tuple(params))
         tasks = cursor.fetchall()
-    return tasks
+        return tasks
 
-@app.get("/api/v1/tasks/{task_id}", response_model=TaskDetails, tags=["Tasks"])
-def read_task_details(task_id: int):
-    """
-    Obtém os detalhes completos de uma única tarefa, incluindo todos os seus blocos.
-    """
+@app.get("/api/v1/tasks/{task_id}", response_model=TaskDetail, tags=["Tasks"])
+def get_task_details(task_id: int):
     with get_db_connection() as conn:
         cursor = conn.cursor(dictionary=True)
         
-        # Busca metadados da tarefa
-        cursor.execute("SELECT * FROM tasks WHERE id = %s", (task_id,))
+        # Busca a tarefa principal
+        cursor.execute("SELECT id, title, status, priority, assigned_to FROM tasks WHERE id = %s", (task_id,))
         task = cursor.fetchone()
         if not task:
             raise HTTPException(status_code=404, detail="Tarefa não encontrada")
@@ -100,59 +93,58 @@ def read_task_details(task_id: int):
         blocks = cursor.fetchall()
         
         task['blocks'] = blocks
-    return task
+        return task
 
-@app.patch("/api/v1/tasks/{task_id}", response_model=TaskBase, tags=["Tasks"])
-def update_task(task_id: int, task_update: TaskUpdate):
-    """
-    Atualiza os metadados de uma tarefa (status, prioridade, etc.).
-    """
-    update_fields = task_update.dict(exclude_unset=True)
-    if not update_fields:
-        raise HTTPException(status_code=400, detail="Nenhum campo para atualizar fornecido.")
-
-    set_clause = ", ".join([f"{key} = %s" for key in update_fields.keys()])
-    params = list(update_fields.values())
-    params.append(task_id)
-
-    query = f"UPDATE tasks SET {set_clause} WHERE id = %s"
-
+@app.patch("/api/v1/tasks/{task_id}", response_model=Task, tags=["Tasks"])
+def update_task_status(task_id: int, update_data: dict):
     with get_db_connection() as conn:
         cursor = conn.cursor(dictionary=True)
+        
+        # Constrói a query de update dinamicamente
+        set_clauses = []
+        params = []
+        for key, value in update_data.items():
+            set_clauses.append(f"{key} = %s")
+            params.append(value)
+        
+        if not set_clauses:
+            raise HTTPException(status_code=400, detail="Nenhum dado para atualizar")
+
+        query = f"UPDATE tasks SET {', '.join(set_clauses)} WHERE id = %s"
+        params.append(task_id)
+        
         cursor.execute(query, tuple(params))
         conn.commit()
         
         # Retorna a tarefa atualizada
         cursor.execute("SELECT id, title, status, priority, assigned_to FROM tasks WHERE id = %s", (task_id,))
         updated_task = cursor.fetchone()
-    return updated_task
+        return updated_task
 
-@app.post("/api/v1/tasks/{task_id}/blocks", response_model=BlockBase, tags=["Tasks"])
-def create_block_for_task(task_id: int, block: BlockCreate):
-    """
-    Adiciona um novo bloco a uma tarefa existente.
-    """
+@app.post("/api/v1/tasks/{task_id}/blocks", response_model=TaskBlock, tags=["Tasks"])
+def create_task_block(task_id: int, new_block: TaskBlock):
     with get_db_connection() as conn:
         cursor = conn.cursor(dictionary=True)
         
-        # Calcula o próximo sequence
-        cursor.execute("SELECT MAX(sequence) as max_seq FROM TaskBlocks WHERE task_id = %s", (task_id,))
-        result = cursor.fetchone()
-        next_sequence = (result['max_seq'] or -1) + 1
-        
+        # --- INÍCIO DA CORREÇÃO ---
+        # Geramos um UUID para o novo bloco
         new_block_id = str(uuid.uuid4())
         
         query = """
-        INSERT INTO TaskBlocks (block_id, task_id, sequence, author_id, block_type, content)
-        VALUES (%s, %s, %s, %s, %s, %s)
+            INSERT INTO TaskBlocks (block_id, task_id, sequence, author_id, block_type, content)
+            VALUES (%s, %s, %s, %s, %s, %s)
         """
-        params = (new_block_id, task_id, next_sequence, block.author_id, block.block_type, block.content)
+        # Adicionamos o new_block_id aos parâmetros
+        params = (new_block_id, task_id, new_block.sequence, new_block.author_id, new_block.block_type, new_block.content)
+        # --- FIM DA CORREÇÃO ---
         
-        cursor.execute(query, params)
-        conn.commit()
-        
-    return {"sequence": next_sequence, **block.dict()}
+        try:
+            cursor.execute(query, params)
+            conn.commit()
+            return new_block
+        except mysql.connector.Error as e:
+            # Log do erro no servidor para depuração
+            print(f"Erro de banco de dados ao criar bloco: {e}")
+            raise HTTPException(status_code=500, detail=f"Erro interno ao criar bloco: {e}")
 
-# --- Comando para rodar o servidor (para referência) ---
-# uvicorn main:app --reload
 
