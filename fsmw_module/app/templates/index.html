@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>FSMW - Navegador de Arquivos</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; margin: 0; height: 100vh; background-color: #1e1e1e; color: #d4d4d4; }
+        #sidebar { width: 220px; background-color: #252526; padding: 10px; border-right: 1px solid #333; display: flex; flex-direction: column; }
+        #sidebar button { background-color: #3a3a3a; color: #ccc; border: 1px solid #555; padding: 10px; margin-bottom: 10px; text-align: left; cursor: pointer; width: 100%; border-radius: 4px; }
+        #sidebar button.active { background-color: #007acc; color: white; }
+        #main-content { flex-grow: 1; padding: 20px; display: flex; flex-direction: column; }
+        #search-bar { display: flex; margin-bottom: 15px; }
+        #search-box { flex-grow: 1; padding: 8px; background-color: #3c3c3c; border: 1px solid #555; color: #ccc; border-radius: 4px 0 0 4px; }
+        #search-button { padding: 8px 15px; background-color: #007acc; color: white; border: none; cursor: pointer; border-radius: 0 4px 4px 0; }
+        #file-browser { border: 1px solid #333; border-radius: 4px; flex-grow: 1; overflow-y: auto; }
+        #current-path { padding: 10px; background-color: #2a2a2a; border-bottom: 1px solid #333; }
+        #file-list { list-style-type: none; padding: 0; margin: 0; }
+        #file-list li { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #2a2a2a; display: flex; align-items: center; }
+        #file-list li:hover { background-color: #3a3a3a; }
+        .folder::before { content: '📁'; margin-right: 10px; }
+        .file::before { content: '📄'; margin-right: 10px; }
+        a { color: #3794ff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <button id="nav-button" class="active">Navegar Arquivos</button>
+        <button id="collections-button">Gerenciar Coleções</button>
+    </div>
+    <div id="main-content">
+        <h2>Navegador de Arquivos</h2>
+        <div id="search-bar">
+            <input type="text" id="search-box" placeholder="Buscar em todo o disco...">
+            <button id="search-button">Buscar</button>
+        </div>
+        <div id="file-browser">
+            <div id="current-path">Caminho: /</div>
+            <ul id="file-list"><li>Carregando...</li></ul>
+        </div>
+    </div>
+
+    <script>
+        const appConfig = {{ app_config | tojson }};
+        
+        // --- CORREÇÃO CRÍTICA AQUI ---
+        // Acessa as propriedades do objeto appConfig que foi injetado.
+        // O objeto injetado é a seção FSMW_CONFIG do JSON, então não precisamos repetir o nome.
+        const FSMW_MODULE_PREFIX = appConfig.URL_PREFIX;
+        const API_PREFIX = appConfig.API_BASE_PATH;
+        const API_URLS = appConfig.API_URLS;
+
+        const fileList = document.getElementById('file-list');
+        const currentPathEl = document.getElementById('current-path');
+
+        function loadDirectory(path = '/') {
+            // Verifica se as URLs foram carregadas antes de fazer a chamada
+            if (!API_URLS || !API_URLS.browse) {
+                console.error("Erro de configuração: API_URLS.browse não está definido.", appConfig);
+                fileList.innerHTML = `<li>Erro de configuração. Verifique o console.</li>`;
+                return;
+            }
+
+            const browseUrl = `${FSMW_MODULE_PREFIX}${API_PREFIX}${API_URLS.browse}?path=${encodeURIComponent(path)}`;
+            console.log("Buscando diretório em:", browseUrl);
+
+            fetch(browseUrl)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.error) {
+                        fileList.innerHTML = `<li>Erro: ${data.error}</li>`;
+                        return;
+                    }
+                    currentPathEl.textContent = `Caminho: ${data.path}`;
+                    fileList.innerHTML = '';
+
+                    if (data.path !== '/') {
+                        const parentPath = data.path.substring(0, data.path.lastIndexOf('/')) || '/';
+                        const upItem = document.createElement('li');
+                        upItem.textContent = '.. (Voltar)';
+                        upItem.onclick = () => loadDirectory(parentPath);
+                        fileList.appendChild(upItem);
+                    }
+
+                    (data.subfolders || []).forEach(folder => {
+                        const item = document.createElement('li');
+                        item.className = 'folder';
+                        item.textContent = folder.name;
+                        item.onclick = () => loadDirectory(`${data.path === '/' ? '' : data.path}/${folder.name}`);
+                        fileList.appendChild(item);
+                    });
+
+                    (data.files || []).forEach(file => {
+                        const item = document.createElement('li');
+                        item.className = 'file';
+                        item.textContent = `${file.name} (${file.size} bytes)`;
+                        item.onclick = () => downloadFile(`${data.path === '/' ? '' : data.path}/${file.name}`);
+                        fileList.appendChild(item);
+                    });
+                })
+                .catch(error => {
+                    console.error('Erro ao carregar diretório:', error);
+                    fileList.innerHTML = `<li>Falha ao carregar. Verifique o console.</li>`;
+                });
+        }
+
+        function downloadFile(path) {
+            const downloadUrl = `${FSMW_MODULE_PREFIX}${API_PREFIX}${API_URLS.download}?path=${encodeURIComponent(path)}`;
+            console.log("Tentando baixar de:", downloadUrl);
+            window.open(downloadUrl, '_blank');
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadDirectory('/');
+        });
+    </script>
+</body>
+</html>
+

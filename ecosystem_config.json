@@ -1,0 +1,23 @@
+{
+  "SERVER": {
+    "host": "0.0.0.0",
+    "port": 8000
+  },
+  "SOFIA_CONFIG": {
+    "API_BASE_PATH": "/api/v1/sofia"
+  },
+  "FSMW_CONFIG": {
+    "USER_ROOT_JAIL": "/media/mesh/MYEBOOK1/DIRCOM/GERCOM/PROJETOS/MESHWAVE",
+    "URL_PREFIX": "/fsmw",
+    "API_BASE_PATH": "/api/v1",
+    "API_URLS": {
+      "browse": "/browse",
+      "search": "/search",
+      "download": "/download",
+      "create_collection": "/collections/create",
+      "get_collections": "/collections",
+      "delete_collection": "/collections/delete"
+    }
+  }
+}
+
