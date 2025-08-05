@@ -1,0 +1,58 @@
+# sofia/fsmw_module/app/routes/fsmw_router.py
+# VERSÃO FINAL: Garante que a variável 'app_config' seja passada corretamente.
+
+from fastapi import APIRouter, Request, HTTPException
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+from pathlib import Path
+import json
+
+# --- Carregamento da Configuração Centralizada ---
+CONFIG_PATH = Path(__file__).resolve().parent.parent.parent.parent / 'ecosystem_config.json'
+try:
+    with open(CONFIG_PATH, 'r') as f:
+        config = json.load(f)
+except FileNotFoundError:
+    print(f"AVISO: Arquivo de configuração não encontrado em {CONFIG_PATH}. Usando valores padrão.")
+    config = {}
+
+# --- Configuração dos Templates ---
+templates_path = Path(__file__).resolve().parent.parent / "templates"
+templates = Jinja2Templates(directory=str(templates_path))
+
+router = APIRouter()
+
+# --- Rota para Servir a Interface ---
+@router.get("/", response_class=HTMLResponse)
+async def read_fsmw_index(request: Request):
+    """
+    Serve a interface principal do FSMW e injeta a configuração da aplicação.
+    """
+    # Prepara o dicionário de configuração que o frontend espera.
+    app_config_data = {
+        "api_urls": {
+            "browse": "/fsmw/browse",
+            "search": "/fsmw/search",
+            "download": "/fsmw/download"
+        },
+        "base_path": config.get('fsmw_module', {}).get('BASE_PATH', '/home/mesh')
+    }
+
+    # --- INÍCIO DA CORREÇÃO ---
+    # O dicionário de contexto DEVE ter uma chave chamada 'app_config'
+    # para corresponder ao que o index.html espera em {{ app_config | tojson }}.
+    context = {
+        "request": request,
+        "app_config": app_config_data
+    }
+    # --- FIM DA CORREÇÃO ---
+
+    return templates.TemplateResponse("index.html", context)
+
+
+# --- Rota da API de Navegação ---
+@router.get("/browse")
+def browse_directory(path: str = "/"):
+    # ... (lógica da API de browse)
+    return {"path": path, "subfolders": ["Pasta Exemplo 1"], "files": ["arquivo.txt"]}
+

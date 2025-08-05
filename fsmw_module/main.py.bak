@@ -1,0 +1,48 @@
+# ~/home/sofia/fsmw_module/main.py
+# VERSÃO FINAL: Configura o serviço de arquivos estáticos.
+
+import sys
+from pathlib import Path
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles # Importa a classe necessária
+from fastapi.middleware.cors import CORSMiddleware
+import json
+
+# --- Configuração de Caminho ---
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+# --- Importação do Roteador do FSMW ---
+from fsmw_module.app.routes import fsmw_router
+
+# --- Criação da Aplicação FastAPI ---
+app = FastAPI(
+    title="FSMW - Módulo de Gerenciamento de Arquivos",
+    description="API para navegação e gerenciamento de arquivos no sistema SOFIA.",
+    version="1.1.0"
+)
+
+# --- Montagem do Diretório Estático ---
+# Monta o diretório 'static' para que o FastAPI possa servir os arquivos CSS.
+# O caminho aponta para a pasta 'static' dentro de 'fsmw_module/app/'.
+static_path = Path(__file__).resolve().parent / "app" / "static"
+app.mount("/static", StaticFiles(directory=static_path), name="static")
+
+# Habilita o CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Inclui as rotas do FSMW na aplicação
+app.include_router(fsmw_router.router)
+
+@app.get("/")
+def read_root_fsmw():
+    """Rota raiz para verificar se o módulo FSMW está online."""
+    return {"message": "Bem-vindo ao Módulo FSMW."}
+
