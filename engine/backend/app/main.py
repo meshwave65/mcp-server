@@ -1,40 +1,65 @@
-# sofia/engine/backend/app/main.py (VERSÃO ATUALIZADA)
+# ~/home/sofia/engine/backend/main.py
+# VERSÃO ATUALIZADA: Agora atua como um Gateway de API, unificando backend e fsmw.
 
+import sys
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .database import engine
-from . import models
+from fastapi.staticfiles import StaticFiles
+import logging
 
-# --- IMPORTAÇÃO DOS ROTEADORES ---
-from .routers import roadmap_router
-from .routers import tasks_router  # <-- 1. NOVA LINHA: Importa o roteador de tarefas
+# --- Configuração de Logging ---
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Garante que as tabelas do banco de dados (se houver) sejam criadas.
-# models.Base.metadata.create_all(bind=engine) # Descomente se precisar criar tabelas do DB
+# --- Configuração de Caminho ---
+ENGINE_ROOT = Path(__file__).resolve().parent.parent
+if str(ENGINE_ROOT) not in sys.path:
+    sys.path.insert(0, str(ENGINE_ROOT))
 
+# --- Importações dos Roteadores de AMBOS os serviços ---
+from backend.app.routers import roadmap_router, tasks_router
+from fsmw_module.app.routes import fsmw_router  # <-- Importação do FSMW
+from backend.app.database import Base, engine
+
+# --- Criação das Tabelas (se não existirem) ---
+Base.metadata.create_all(bind=engine)
+
+# --- Criação da Aplicação FastAPI Unificada ---
 app = FastAPI(
-    title="SOFIA Backend API",
-    description="API para o sistema SOFIA e seus projetos gerenciados.",
-    version="2.0.0" # Atualizamos a versão para refletir o novo módulo
+    title="Ecossistema SOFIA Unificado",
+    description="API Central servindo Backend SOFIA e Módulo FSMW.",
+    version="1.5.0"
 )
 
-# Habilita o CORS para permitir requisições do frontend
-origins = ["*"]
+# --- Montagem do Diretório Estático do FSMW ---
+static_path = ENGINE_ROOT / "fsmw_module" / "app" / "static"
+app.mount("/static", StaticFiles(directory=static_path), name="static")
+
+# --- Habilita o CORS com Configuração Específica ---
+origins = [
+    "http://localhost:5173",  # Frontend em desenvolvimento
+    "http://localhost",       # Outra origem local, se aplicável
+    "https://3385bb0ce920.ngrok-free.app"  # Origem ngrok, se for o frontend exposto
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=origins,  # Lista específica de origens permitidas
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],    # Permite todos os métodos
+    allow_headers=["*"],    # Permite todos os cabeçalhos
 )
 
-# --- REGISTRO DOS ROTEADORES ---
+# --- REGISTRO DE TODAS AS ROTAS ---
+logger.info("--- Registrando roteadores ---")
 app.include_router(roadmap_router.router)
-app.include_router(tasks_router.router) # <-- 2. NOVA LINHA: Inclui o roteador de tarefas
+app.include_router(tasks_router.router)
+logger.info("✅ Roteadores do Backend SOFIA registrados.")
 
-@app.get("/", tags=["Root"])
+app.include_router(fsmw_router.router)
+logger.info("✅ Roteador do FSMW registrado.")
+
+@app.get("/")
 def read_root():
-    """ Rota raiz para verificar se a API está online. """
-    return {"message": "Bem-vindo à API do SOFIA. O serviço está operacional."}
-
-
+    return {"message": "Bem-vindo ao Ecossistema SOFIA Unificado"}

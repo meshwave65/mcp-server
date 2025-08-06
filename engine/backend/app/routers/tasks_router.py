@@ -4,8 +4,10 @@ from fastapi import APIRouter, HTTPException, status
 from typing import Dict, Optional, List
 
 # Importa o serviço e o modelo de dados que criamos
-from app.services import tasks_service
-from app.services.tasks_service import TaskCreateModel
+# Importa o serviço e o modelo de dados
+from ..services.tasks_service import create_task, get_all_tasks, update_task
+from ..services.tasks_service import TaskCreateModel  # Importação corrigida
+from ..services.tasks_service import TaskUpdateModel  # Modelo de atualização
 
 # Cria uma instância do roteador.
 # O prefixo garante que todos os endpoints aqui comecem com /api/v1/tasks
@@ -70,7 +72,8 @@ def read_all_tasks(
 # Adicione esta função ao final do seu arquivo tasks_router.py
 
 # Importe o modelo de atualização que acabamos de criar
-from app.services.tasks_service import TaskUpdateModel
+from ..services.tasks_service import TaskUpdateModel
+#from app.services.tasks_service import TaskUpdateModel
 
 # ... (mantenha as funções create_new_task e read_all_tasks) ...
 
