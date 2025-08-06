@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FSMW - Navegador de Arquivos</title>
+    <!-- CORREÇÃO: Garante que o nome do arquivo é 'styles.css' -->
+    <link rel="stylesheet" href="/app/static/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <h2>Navegador</h2>
+            <nav>
+                <a href="javascript:void(0);" class="active" onclick="navigateTo('/')">Navegar Arquivos</a>
+                <a href="javascript:void(0);">Gerenciar Coleções</a>
+            </nav>
+            <div class="status-panel">
+                Carregando...
+            </div>
+        </aside>
+        <main class="main-content">
+            <header class="main-header">
+                <div class="search-bar">
+                    <input type="text" id="searchInput" placeholder="Buscar em todo o disco...">
+                    <button onclick="searchFiles()">Buscar</button>
+                </div>
+            </header>
+            <section class="file-browser">
+                <h1 id="currentPath">Caminho: /</h1>
+                <div id="fileList" class="file-list">
+                    <!-- O conteúdo será preenchido pelo JavaScript -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        // O JavaScript permanece o mesmo.
+        const appConfig = {{ app_config | tojson }};
+        const API_URLS = appConfig.api_urls;
+
+        const fileList = document.getElementById('fileList');
+        const currentPathEl = document.getElementById('currentPath');
+        const statusPanel = document.querySelector('.status-panel');
+
+        async function fetchAndDisplay(path) {
+            statusPanel.textContent = 'Carregando...';
+            fileList.innerHTML = '<div class="loading"></div>';
+            currentPathEl.textContent = `Caminho: ${path}`;
+
+            try {
+                const response = await fetch(`${API_URLS.browse}?path=${encodeURIComponent(path)}`);
+                if (!response.ok) throw new Error(`Erro de Rede: ${response.status}`);
+                const data = await response.json();
+                displayContent(data);
+                statusPanel.textContent = 'Pronto';
+            } catch (error) {
+                console.error('Erro ao buscar dados:', error);
+                fileList.innerHTML = `<p class="error">Falha ao carregar: ${error.message}</p>`;
+                statusPanel.textContent = 'Falha na Rede';
+            }
+        }
+
+        function displayContent(data) {
+            fileList.innerHTML = '';
+            data.subfolders.forEach(folder => {
+                const item = document.createElement('div');
+                item.className = 'file-item folder';
+                item.textContent = folder;
+                item.onclick = () => navigateTo(data.path === '/' ? `/${folder}` : `${data.path}/${folder}`);
+                fileList.appendChild(item);
+            });
+
+            data.files.forEach(file => {
+                const item = document.createElement('div');
+                item.className = 'file-item file';
+                item.textContent = file;
+                fileList.appendChild(item);
+            });
+        }
+
+        function navigateTo(path) {
+            fetchAndDisplay(path);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchAndDisplay('/');
+        });
+
+        function searchFiles() {
+            alert('Funcionalidade de busca ainda não implementada.');
+        }
+    </script>
+</body>
+</html>
+
