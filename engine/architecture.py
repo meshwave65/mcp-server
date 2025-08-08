@@ -1,24 +1,26 @@
-# ~/home/sofia/engine/architecture.py
-# Define caminhos e variáveis essenciais para o ecossistema SOFIA.
+# engine/architecture.py
+# VERSÃO: 2.2 - Caminhos Absolutos Explícitos
 
-from pathlib import Path
-import sys
 import os
+from pathlib import Path
+from dotenv import load_dotenv
 
-# --- Raiz do projeto (engine) ---
-ENGINE_ROOT = Path(__file__).resolve().parent
+# Define a raiz do projeto de forma explícita e correta
+PROJECT_ROOT = Path("/home/mesh/home/sofia")
+load_dotenv(dotenv_path=PROJECT_ROOT / ".env")
 
-# --- Diretórios ---
+# --- Caminhos Fundamentais ---
+ENGINE_ROOT = PROJECT_ROOT / "engine"
 FRONTEND_DIR = ENGINE_ROOT / "frontend"
-BACKEND_DIR = ENGINE_ROOT / "backend"
 
-# --- Caminho do Python dentro do venv ---
-VENV_PYTHON = Path(os.getenv("VENV_PYTHON", sys.executable))
+# --- Configurações de Rede ---
+BACKEND_PORT = 8000
+FRONTEND_PORT = 5173
 
-# --- Arquivo .env ---
-ENV_FILE = ENGINE_ROOT.parent / ".env"
+# --- CORREÇÃO CRÍTICA ---
+# Define o caminho para o executável Python do venv de forma absoluta e inequívoca.
+VENV_PYTHON = "/home/mesh/home/sofia/venv/bin/python"
 
-# --- Portas ---
-BACKEND_PORT = int(os.getenv("BACKEND_PORT", 8000))
-FRONTEND_PORT = int(os.getenv("FRONTEND_PORT", 5173))
-
+# --- URL do Banco de Dados ---
+SOFIA_DB_URL = os.getenv("SOFIA_DATABASE_URL")
+FSMW_DB_URL = os.getenv("FSMW_DATABASE_URL")

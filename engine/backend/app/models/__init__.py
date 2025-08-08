@@ -1,7 +1,15 @@
-# Importa apenas as classes que REALMENTE existem no arquivo models.py
-# para que possam ser facilmente acessadas por outras partes da aplicação se necessário.
-from .models import Module, MetadataType, MetadataValue, ModuleMetadata
+# engine/backend/app/models/__init__.py
+# VERSÃO: 1.1 - Sincronizado com o schema sofia_db v1.2
 
-# A importação do Base não é estritamente necessária aqui, mas não causa problemas.
-# Vamos removê-la para manter o arquivo o mais limpo possível.
+# Importa apenas as classes que REALMENTE existem no nosso novo models.py
+from .models import Task, MetadataType, MetadataValue, TaskMetadata, TaskHistory
+
+# Exporta essas classes para que outras partes da aplicação possam usá-las
+__all__ = [
+    "Task",
+    "MetadataType",
+    "MetadataValue",
+    "TaskMetadata",
+    "TaskHistory",
+]
 

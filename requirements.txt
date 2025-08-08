@@ -1,0 +1,21 @@
+# requirements.txt
+# Dependências do Ecossistema SOFIA v1.0
+
+# Núcleo da API e Servidor
+fastapi
+uvicorn[standard]
+
+# Conexão com Banco de Dados
+SQLAlchemy
+PyMySQL
+
+# Renderização de Templates (usado pelo FSMW)
+Jinja2
+
+# Orquestrador e Configuração
+psutil
+python-dotenv
+requests
+
+# Manipulação de Arquivos (legado, mas necessário por enquanto)
+python-frontmatter

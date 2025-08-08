@@ -1,56 +1,37 @@
-# ~/home/sofia/engine/backend/main.py
-# VERSÃO ATUALIZADA: Agora atua como um Gateway de API, unificando backend e fsmw.
+# engine/backend/main.py
+# VERSÃO: 3.2 - Implementando a Importação Explícita do DB
 
 import sys
 from pathlib import Path
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
-# --- Configuração de Caminho ---
+# Adiciona a raiz do 'engine' ao path para garantir as importações
 ENGINE_ROOT = Path(__file__).resolve().parent.parent
 if str(ENGINE_ROOT) not in sys.path:
     sys.path.insert(0, str(ENGINE_ROOT))
 
-# --- Importações dos Roteadores de AMBOS os serviços ---
-from backend.app.routers import roadmap_router, tasks_router
-from fsmw_module.app.routes import fsmw_router  # <-- Importação do FSMW
-from backend.app.database import Base, engine
+# --- DIRETRIZ IMPLEMENTADA ---
+# Declaração explícita de que 'Base' e 'engine' vêm do módulo 'connect_db'
+# dentro do pacote 'backend.app.database'.
+# Isso evita qualquer ambiguidade e não depende do __init__.py.
+from backend.app.database.connect_db import Base, engine
 
-# --- Criação das Tabelas (se não existirem) ---
+# Importa os roteadores que vamos usar.
+from backend.app.routers import tasks_router
+
+# Garante que as tabelas definidas em models.py existam no sofia_db
+print("Verificando e criando tabelas do banco de dados, se necessário...")
 Base.metadata.create_all(bind=engine)
+print("✅ Verificação do banco de dados concluída.")
 
-# --- Criação da Aplicação FastAPI Unificada ---
-app = FastAPI(
-    title="Ecossistema SOFIA Unificado",
-    description="API Central servindo Backend SOFIA e Módulo FSMW.",
-    version="1.5.0"
-)
 
-# --- Montagem do Diretório Estático do FSMW ---
-static_path = ENGINE_ROOT / "fsmw_module" / "app" / "static"
-app.mount("/static", StaticFiles(directory=static_path), name="static")
+app = FastAPI(title="SOFIA Backend v3.2 - Estrutura Limpa")
 
-# Habilita o CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# --- REGISTRO DE TODAS AS ROTAS ---
-print("--- Registrando roteadores ---")
-app.include_router(roadmap_router.router)
+# Inclui o roteador de tarefas na aplicação
 app.include_router(tasks_router.router)
-print("✅ Roteadores do Backend SOFIA registrados.")
 
-app.include_router(fsmw_router.router)
-print("✅ Roteador do FSMW registrado.")
-
-
-@app.get("/")
-def read_root():
-    return {"message": "Bem-vindo ao Ecossistema SOFIA Unificado"}
+@app.get("/health", tags=["Health Check"])
+def health_check():
+    """Verifica se o serviço está online."""
+    return {"status": "ok", "message": "SOFIA Backend online."}
 
