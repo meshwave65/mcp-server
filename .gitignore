@@ -20,3 +20,6 @@ Thumbs.db
 
 # Ignora diretórios de backup e logs para segurança
 .backup/
+
+# Ignora arquivos de backup reais (.bkp)
+*.bkp
