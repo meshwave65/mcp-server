@@ -1,11 +1,10 @@
 # engine/backend/app/routers/tasks_router.py
-# VERSÃO: 3.1 - Roteador com Injeção de Dependência e Schemas
+# VERSÃO: 5.2 - ESTÁVEL (CRUD Completo)
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
-# Importa os componentes necessários
 from ..services import tasks_service
 from ..schemas import task_schemas
 from ..database.connect_db import get_sofia_db
@@ -15,11 +14,8 @@ router = APIRouter(
     tags=["Tasks"]
 )
 
-@router.post("/", response_model=task_schemas.TaskResponseModel)
-def create_task(
-    task: task_schemas.TaskCreateModel,
-    db: Session = Depends(get_sofia_db)
-):
+@router.post("/", response_model=task_schemas.TaskResponseModel, status_code=201)
+def create_task(task: task_schemas.TaskCreateModel, db: Session = Depends(get_sofia_db)):
     return tasks_service.create_task(db=db, task_data=task)
 
 @router.get("/", response_model=List[task_schemas.TaskResponseModel])

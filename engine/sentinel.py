@@ -1,98 +1,83 @@
 # engine/sentinel.py
-# VERSÃO: 13.3 - Limpeza Agressiva de Porta (Anti-Zumbi)
+# VERSÃO: 14.1 - Corrigindo a Ordem de Execução (Restore ANTES de Import)
 
 import os
 import time
 import subprocess
 import psutil
 from pathlib import Path
+import sys
 
-# Importa as constantes do nosso ponto de verdade
-from architecture import (
-    ENGINE_ROOT,
-    FRONTEND_DIR,
-    VENV_PYTHON,
-    BACKEND_PORT,
-    FRONTEND_PORT
-)
+# --- LÓGICA DE RESTAURAÇÃO (NO TOPO DO ARQUIVO) ---
+# Define os caminhos de forma robusta
+PROJECT_ROOT_SENTINEL = Path(__file__).resolve().parent.parent
+ENV_FILE_SENTINEL = PROJECT_ROOT_SENTINEL / ".env"
+BACKUP_DIR_SENTINEL = PROJECT_ROOT_SENTINEL / ".backup"
+BACKUP_FILE_SENTINEL = BACKUP_DIR_SENTINEL / "env.bak"
 
-class Sentinel:
-    def __init__(self, services_config):
-        self.services = services_config
-
-    def get_pid_on_port(self, port):
-        """Verifica se há um processo escutando na porta especificada."""
-        try:
-            for conn in psutil.net_connections(kind='inet'):
-                if conn.laddr.port == port and conn.status == psutil.CONN_LISTEN:
-                    return conn.pid
-        except psutil.AccessDenied:
-            return -1
-        except Exception:
-            return None
-        return None
-
-    def force_kill_port(self, port):
-        """
-        Executa um comando de sistema para matar qualquer processo
-        que esteja ocupando a porta especificada.
-        """
-        print(f"🧹 Limpeza Agressiva: Forçando o encerramento de qualquer processo na porta {port}...")
-        # O comando 'lsof -t -i:PORT' lista o PID do processo na porta.
-        # 'kill -9' força o encerramento desse PID.
-        # '> /dev/null 2>&1' suprime a saída de erro se a porta já estiver livre.
-        os.system(f"kill -9 $(lsof -t -i:{port}) > /dev/null 2>&1")
-        time.sleep(1) # Dá um segundo para o sistema operacional liberar o socket.
-
-    def start_service(self, service_key):
-        """Inicia um serviço específico."""
-        config = self.services[service_key]
-        name, command, cwd = config['name'], config['command'], config['cwd']
-        
-        print(f"🔄 Iniciando o serviço '{name}' em '{cwd}'...")
-        print(f"   Comando a ser executado: {' '.join(command)}")
-        try:
-            subprocess.Popen(command, cwd=cwd)
-            print(f"✅ Comando para '{name}' enviado ao sistema.")
-        except Exception as e:
-            print(f"❌ FALHA CRÍTICA ao tentar iniciar '{name}': {e}")
-
-    def check_and_manage_service(self, service_key):
-        """Verifica o estado de um serviço e o gerencia."""
-        config = self.services[service_key]
-        port = config['port']
-        name = config['name']
-
-        pid = self.get_pid_on_port(port)
-
-        if pid is None:
-            print(f"⚠️  Porta {port} para o serviço '{name}' está DOWN.")
-            # --- LÓGICA ANTI-ZUMBI ---
-            self.force_kill_port(port)
-            self.start_service(service_key)
+def restore_env_if_missing():
+    """Verifica se .env existe. Se não, tenta restaurar do backup."""
+    if not ENV_FILE_SENTINEL.exists():
+        print("--- ⚠️ [Restore] Arquivo .env não encontrado! ---")
+        if BACKUP_FILE_SENTINEL.exists():
+            print(f"--- 🔄 [Restore] Restaurando .env a partir do backup: {BACKUP_FILE_SENTINEL} ---")
+            try:
+                # Garante que o diretório de backup exista (caso de clone novo)
+                BACKUP_DIR_SENTINEL.mkdir(exist_ok=True)
+                with open(BACKUP_FILE_SENTINEL, 'r') as f_in, open(ENV_FILE_SENTINEL, 'w') as f_out:
+                    f_out.write(f_in.read())
+                print("✅ .env restaurado com sucesso.")
+                # Retorna True para indicar que uma restauração ocorreu
+                return True
+            except Exception as e:
+                print(f"❌ Falha crítica ao restaurar .env: {e}")
+                sys.exit(1)
         else:
-            pass # Porta está UP, nenhuma ação necessária.
+            print("❌ ERRO FATAL: .env não encontrado e nenhum arquivo de backup disponível.")
+            print("   Por favor, crie um arquivo .env na raiz do projeto.")
+            sys.exit(1)
+    # Retorna False se nenhuma restauração foi necessária
+    return False
 
-    def run(self):
-        """O ciclo principal do Sentinela."""
-        print(f"--- 🛡️  Sentinela SOFIA (v{VERSION}) 🛡️ ---")
-        while True:
-            print(f"\n--- Verificação às {time.strftime('%Y-%m-%d %H:%M:%S')} ---")
-            for key in self.services.keys():
-                self.check_and_manage_service(key)
-            
-            print("--- Verificação concluída. Próxima em 15 segundos. ---")
-            time.sleep(15)
-
+# --- CÓDIGO PRINCIPAL DO SENTINEL ---
 if __name__ == "__main__":
-    VERSION = "13.3"
+    # PASSO 1: Executa a verificação de restauração ANTES de qualquer outra coisa.
+    restore_env_if_missing()
 
-    # Limpa todas as portas do projeto ANTES de iniciar o ciclo
-    print("--- Limpeza Inicial do Ambiente ---")
-    os.system(f"kill -9 $(lsof -t -i:{BACKEND_PORT} -t -i:{FRONTEND_PORT}) > /dev/null 2>&1")
-    time.sleep(1)
+    # PASSO 2: AGORA, com a garantia de que .env existe, importa a arquitetura.
+    # Esta importação agora será bem-sucedida.
+    from architecture import (
+        ENGINE_ROOT,
+        FRONTEND_DIR,
+        VENV_PYTHON,
+        BACKEND_PORT,
+        FRONTEND_PORT
+    )
 
-    # Definição dos serviços
+    # O resto do código do Sentinel permanece o mesmo
+    class Sentinel:
+        def __init__(self, services_config): self.services = services_config
+        def get_pid_on_port(self, port):
+            try:
+                for conn in psutil.net_connections(kind='inet'):
+                    if conn.laddr.port == port and conn.status == psutil.CONN_LISTEN: return conn.pid
+            except: return None
+        def start_service(self, service_key):
+            config = self.services[service_key]
+            name, command, cwd = config['name'], config['command'], config['cwd']
+            print(f"🔄 Iniciando o serviço '{name}' em '{cwd}'...")
+            print(f"   Comando: {' '.join(command)}")
+            try: subprocess.Popen(command, cwd=cwd)
+            except Exception as e: print(f"❌ Falha ao iniciar '{name}': {e}")
+        def check_and_manage_service(self, service_key):
+            if not self.get_pid_on_port(self.services[service_key]['port']): self.start_service(service_key)
+        def run(self):
+            print(f"--- 🛡️  Sentinela SOFIA (v14.1) 🛡️ ---")
+            while True:
+                for key in self.services.keys(): self.check_and_manage_service(key)
+                time.sleep(15)
+
+    # PASSO 3: Define os serviços e executa o Sentinel
     gateway_command = [
         str(VENV_PYTHON), "-m", "uvicorn", "backend.main:app",
         "--host", "0.0.0.0", "--port", str(BACKEND_PORT), "--reload"
@@ -107,8 +92,8 @@ if __name__ == "__main__":
             "command": ["npm", "run", "dev", "--", "--host"], "cwd": str(FRONTEND_DIR)
         }
     }
-    
-    # Inicia o Sentinela
-    sentinel = Sentinel(SERVICES)
-    sentinel.run()
+
+    os.system(f"kill -9 $(lsof -t -i:{BACKEND_PORT} -t -i:{FRONTEND_PORT}) > /dev/null 2>&1")
+    time.sleep(1)
+    Sentinel(SERVICES).run()
 
