@@ -17,3 +17,6 @@ __pycache__/
 # Arquivos de sistema
 .DS_Store
 Thumbs.db
+
+# Ignora diretórios de backup e logs para segurança
+.backup/
